@@ -19,8 +19,7 @@ app.listen(port, () => {
 });
 
 
-
-app.get('/api/customer-satisfaction-data', async (req, res) => {
+app.get('/api/customer-satisfaction-data/', async (req, res) => {
     try {
       const snapshot = await admin.firestore().collection('customer-satisfaction-data').get();
       const items = [];
@@ -31,6 +30,24 @@ app.get('/api/customer-satisfaction-data', async (req, res) => {
     } catch (error) {
       console.error('Error fetching items:', error);
       res.status(500).json({ error: 'Error fetching items' });
+    }
+  });
+
+  app.get('/api/customer-satisfaction-data/:documentId', async (req, res) => {
+    try {
+      const documentId = req.params.documentId; // Get the document ID from the URL
+      const docRef = admin.firestore().collection('customer-satisfaction-data').doc(documentId);
+  
+      const doc = await docRef.get();
+      if (!doc.exists) {
+        return res.status(404).json({ error: 'Document not found' });
+      }
+  
+      const data = doc.data();
+      res.status(200).json(data);
+    } catch (error) {
+      console.error('Error fetching document:', error);
+      res.status(500).json({ error: 'Error fetching document' });
     }
   });
   
