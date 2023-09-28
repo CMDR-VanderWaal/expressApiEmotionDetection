@@ -3,7 +3,7 @@ const admin = require('firebase-admin');
 const functions =require("firebase-functions")
 
 const app = express();
-const port = process.env.PORT || 3001;
+const port = process.env.PORT || 3000;
 
 // Initialize Firebase Admin SDK with your service account JSON file
 const serviceAccount = require('./sensorsprok-firebase-adminsdk-8lypo-862938d9d5.json');
@@ -17,11 +17,14 @@ app.use(express.json());
 // Add any other middleware here (e.g., CORS)
 
 // Include your modular route files here
-app.use('/api/customer-emotions', require('./routes/customerEmotionRoutes'));
+//app.use('/api/customer-satisfaction-data/', require('./routes/customerEmotionRoutes.js'));
+app.use('/api/customer-satisfaction-data', require('./routes/customerEmotionRoutes'));
 // Add other routes as needed (e.g., authentication routes)
 
+
+
 // Error handling middleware (e.g., errorHandlerMiddleware)
-app.use(require('./middleware/errorHandlerMiddleware'));
+//app.use(require('./middleware/errorHandlerMiddleware').handleError);
 
 // Start the server
 app.listen(port, () => {

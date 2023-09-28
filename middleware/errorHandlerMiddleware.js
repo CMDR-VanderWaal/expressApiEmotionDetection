@@ -1,6 +1,6 @@
 // errorHandlerMiddleware.js
-const constants = require('../constants'); // Define your error constants here
-
+//const constants = require('../constants'); // Define your error constants here
+/*
 const handleError = (err, req, res, next) => {
   const status = res.statusCode ? res.statusCode : constants.SERVER_ERR;
   switch (status) {
@@ -23,11 +23,11 @@ const handleError = (err, req, res, next) => {
       console.error('Unhandled error:', err);
       res.status(constants.SERVER_ERR).json({
         title: 'Server ERROR',
-        message: 'An unexpected error occurred.',
+        message: 'An unexpected error occurred. idk wat to do',
         stackTrace: err.stack
       });
   }
-};
+}; */
 
 module.exports = {
   handleError
