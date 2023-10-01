@@ -21,28 +21,63 @@ app.listen(port, () => {
 
 app.get('/api/customer-satisfaction-data/', async (req, res) => {
   try {
-    const snapshot = await admin.firestore().collectionGroup('datewise').get();
-    const data = [];
+    const customerCollection = await admin.firestore().collection('customer-satisfaction-data').get();
+    
+    const jsonData = [];
 
-    snapshot.forEach((doc) => {
-      data.push(doc.data());
-    });
+    // Iterate through the customer collection
+    for (const customerDoc of customerCollection.docs) {
+      const customerData = customerDoc.data();
+      const customerId = customerDoc.id;
 
-    res.status(200).json(data);
+      // Create an object for this customer
+      const customerObject = {
+        customerId,
+        ...customerData,
+        datewise: [],
+      };
+
+      // Access the datewise subcollection for this customer
+      const datewiseCollection = await admin
+        .firestore()
+        .collection('customer-satisfaction-data')
+        .doc(customerId)
+        .collection('datewise')
+        .get();
+
+      // Iterate through the datewise subcollection
+      datewiseCollection.forEach((datewiseDoc) => {
+        const datewiseData = datewiseDoc.data();
+        const datewiseId = datewiseDoc.id;
+
+        // Add datewise data to the customer object
+        customerObject.datewise.push({
+          datewiseId,
+          ...datewiseData,
+        });
+      });
+
+      // Add the customer object to the JSON array
+      jsonData.push(customerObject);
+    }
+
+    res.status(200).json(jsonData);
   } catch (error) {
-    console.error('Error fetching emotion data for all customers:', error);
-    res.status(500).json({ error: 'Error fetching emotion data for all customers' });
+    console.error('Error fetching all customer data:', error);
+    res.status(500).json({ error: 'Error fetching all customer data' });
   }
-  });
+});
 
- // Modify your route to accept a document ID as a parameter
- app.get('/api/customer-satisfaction-data/customer/:customerName', async (req, res) => {
+app.get('/api/customer-satisfaction-data/customer/:customerName', async (req, res) => {
   try {
     const customerName = req.params.customerName;
+
+    // Query the Super Collection for the specific customer
     const querySnapshot = await admin
       .firestore()
-      .collectionGroup('datewise')
-      .where('customer-name', '==', customerName)
+      .collection('customer-satisfaction-data')
+      .doc(`${customerName}_emotionData`) // Assuming the document name follows the pattern "CustomerName_emotionData"
+      .collection('datewise')
       .get();
 
     if (querySnapshot.empty) {
@@ -62,22 +97,23 @@ app.get('/api/customer-satisfaction-data/', async (req, res) => {
   }
 });
 
+
 app.get('/api/customer-satisfaction-data/date/:startDate/:endDate', async (req, res) => {
   try {
     const startDate = req.params.startDate; // Start date in YYYY-MM-DD format
     const endDate = req.params.endDate; // End date in YYYY-MM-DD format
 
-    const querySnapshot = await admin
-      .firestore()
-      .collectionGroup('datewise')
-      .where('date', '>=', startDate)
-      .where('date', '<=', endDate)
-      .get();
-
+    const datewiseCollection = admin.firestore().collectionGroup('datewise');
+    
     const data = [];
 
+    // Loop through the datewiseCollection and filter documents based on date names
+    const querySnapshot = await datewiseCollection.get();
     querySnapshot.forEach((doc) => {
-      data.push(doc.data());
+      const docDate = doc.id; // Get the date name from the document ID
+      if (docDate >= startDate && docDate <= endDate) {
+        data.push(doc.data());
+      }
     });
 
     if (data.length === 0) {
@@ -90,7 +126,7 @@ app.get('/api/customer-satisfaction-data/date/:startDate/:endDate', async (req, 
     res.status(500).json({ error: 'Error fetching emotion data by date range' });
   }
 });
-  
+
 
 
 exports.api = functions.https.onRequest(app)
