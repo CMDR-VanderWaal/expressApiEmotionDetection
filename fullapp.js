@@ -24,6 +24,10 @@ app.get('/api/customer-satisfaction-data/', async (req, res) => {
     const customerCollection = await admin.firestore().collection('customer-satisfaction-data').get();
     
     const jsonData = [];
+    const emotionCounts = {}; // Initialize emotion counts object
+    var emotions = [] ; 
+    const emotionPercents = {};
+    var total = 0;
 
     // Iterate through the customer collection
     for (const customerDoc of customerCollection.docs) {
@@ -44,7 +48,7 @@ app.get('/api/customer-satisfaction-data/', async (req, res) => {
         .doc(customerId)
         .collection('datewise')
         .get();
-
+      
       // Iterate through the datewise subcollection
       datewiseCollection.forEach((datewiseDoc) => {
         const datewiseData = datewiseDoc.data();
@@ -55,13 +59,33 @@ app.get('/api/customer-satisfaction-data/', async (req, res) => {
           datewiseId,
           ...datewiseData,
         });
+        
+        if ('emotion-data' in datewiseData) {
+          // Push the emotions from the document to the emotions array
+          emotions.push(...datewiseData['emotion-data']);
+          //datewiseData['emotion-data'].forEach((emotion))
+        }
       });
-
+      
+      emotions.forEach((emotion) => {
+        // Increment the count for each emotion
+        emotionCounts[emotion] = (emotionCounts[emotion] || 0) + 1;
+        total=total+1;
+      });
+      emotions = []
+      
+      
       // Add the customer object to the JSON array
       jsonData.push(customerObject);
     }
+    //console.log(total);
+    const keys = Object.keys(emotionCounts);
+    keys.forEach((emotion)=>{
+      //console.log(emotionCounts[emotion])
+      emotionPercents[emotion]=((emotionCounts[emotion]*100)/total);
+    })
 
-    res.status(200).json(jsonData);
+    res.status(200).json({ jsonData, emotionCounts ,emotionPercents}); // Include emotion counts in the response
   } catch (error) {
     console.error('Error fetching all customer data:', error);
     res.status(500).json({ error: 'Error fetching all customer data' });
@@ -126,6 +150,7 @@ app.get('/api/customer-satisfaction-data/date/:startDate/:endDate', async (req, 
     res.status(500).json({ error: 'Error fetching emotion data by date range' });
   }
 });
+
 
 
 
