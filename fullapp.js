@@ -25,9 +25,9 @@ app.get('/api/customer-satisfaction-data/', async (req, res) => {
     
     const jsonData = [];
     const emotionCounts = {}; // Initialize emotion counts object
-    var emotions = [] ; 
+    let emotions = [] ; 
     const emotionPercents = {};
-    var total = 0;
+    let total = 0;
 
     // Iterate through the customer collection
     for (const customerDoc of customerCollection.docs) {
@@ -95,12 +95,10 @@ app.get('/api/customer-satisfaction-data/', async (req, res) => {
 app.get('/api/customer-satisfaction-data/customer/:customerName', async (req, res) => {
   try {
     const customerName = req.params.customerName;
-
-    // Query the Super Collection for the specific customer
     const querySnapshot = await admin
       .firestore()
       .collection('customer-satisfaction-data')
-      .doc(`${customerName}_emotionData`) // Assuming the document name follows the pattern "CustomerName_emotionData"
+      .doc(`${customerName}_emotionData`)
       .collection('datewise')
       .get();
 
@@ -109,42 +107,68 @@ app.get('/api/customer-satisfaction-data/customer/:customerName', async (req, re
     }
 
     const data = [];
+    const emotionCounts = {};
+    let emotions = [];
+    let total = 0;
 
     querySnapshot.forEach((doc) => {
-      data.push(doc.data());
+      const datewiseData = doc.data();
+
+      if ('emotion-data' in datewiseData) {
+        emotions.push(...datewiseData['emotion-data']);
+      }
     });
 
-    res.status(200).json(data);
+    emotions.forEach((emotion) => {
+      emotionCounts[emotion] = (emotionCounts[emotion] || 0) + 1;
+      total = total + 1;
+    });
+
+    const emotionPercents = {};
+    const keys = Object.keys(emotionCounts);
+    keys.forEach((emotion) => {
+      emotionPercents[emotion] = (emotionCounts[emotion] * 100) / total;
+    });
+
+    res.status(200).json({ data, emotionCounts, emotionPercents });
   } catch (error) {
     console.error('Error fetching customer data:', error);
     res.status(500).json({ error: 'Error loading customer data' });
   }
 });
 
-
 app.get('/api/customer-satisfaction-data/date/:startDate/:endDate', async (req, res) => {
   try {
-    const startDate = req.params.startDate; // Start date in YYYY-MM-DD format
-    const endDate = req.params.endDate; // End date in YYYY-MM-DD format
-
+    const startDate = req.params.startDate;
+    const endDate = req.params.endDate;
     const datewiseCollection = admin.firestore().collectionGroup('datewise');
-    
     const data = [];
+    const emotionCounts = {};
+    let emotions = [];
+    let total = 0;
 
-    // Loop through the datewiseCollection and filter documents based on date names
     const querySnapshot = await datewiseCollection.get();
     querySnapshot.forEach((doc) => {
-      const docDate = doc.id; // Get the date name from the document ID
-      if (docDate >= startDate && docDate <= endDate) {
-        data.push(doc.data());
+      const datewiseData = doc.data();
+      const docDate = doc.id;
+
+      if (docDate >= startDate && docDate <= endDate && 'emotion-data' in datewiseData) {
+        emotions.push(...datewiseData['emotion-data']);
       }
     });
 
-    if (data.length === 0) {
-      return res.status(404).json({ error: 'No data found within the specified date range' });
-    }
+    emotions.forEach((emotion) => {
+      emotionCounts[emotion] = (emotionCounts[emotion] || 0) + 1;
+      total = total + 1;
+    });
 
-    res.status(200).json(data);
+    const emotionPercents = {};
+    const keys = Object.keys(emotionCounts);
+    keys.forEach((emotion) => {
+      emotionPercents[emotion] = (emotionCounts[emotion] * 100) / total;
+    });
+
+    res.status(200).json({ data, emotionCounts, emotionPercents });
   } catch (error) {
     console.error('Error fetching emotion data by date range:', error);
     res.status(500).json({ error: 'Error fetching emotion data by date range' });
