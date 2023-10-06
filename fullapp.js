@@ -24,7 +24,7 @@ app.get('/api/customer-satisfaction-data/', async (req, res) => {
     const customerCollection = await admin.firestore().collection('customer-satisfaction-data').get();
     
     const jsonData = [];
-    const emotionCounts = {}; // Initialize emotion counts object
+    const emotionCounts = {}; // Initialize   emotion counts object
     let emotions = [] ; 
     const emotionPercents = {};
     let total = 0;
@@ -107,6 +107,10 @@ app.get('/api/customer-satisfaction-data/customer/:customerName', async (req, re
     }
 
     const data = [];
+    querySnapshot.forEach((doc) => {
+      data.push(doc.data());
+    });
+
     const emotionCounts = {};
     let emotions = [];
     let total = 0;
@@ -151,6 +155,7 @@ app.get('/api/customer-satisfaction-data/date/:startDate/:endDate', async (req, 
     querySnapshot.forEach((doc) => {
       const datewiseData = doc.data();
       const docDate = doc.id;
+      data.push(doc.data());
 
       if (docDate >= startDate && docDate <= endDate && 'emotion-data' in datewiseData) {
         emotions.push(...datewiseData['emotion-data']);
@@ -175,7 +180,25 @@ app.get('/api/customer-satisfaction-data/date/:startDate/:endDate', async (req, 
   }
 });
 
+app.get('/api/customer-satisfaction-data/customers', async (req, res) => {
+  try {
+    const customerCollection = await admin.firestore().collection('customer-satisfaction-data').get();
+    const customers = [];
+
+    customerCollection.forEach((doc) => {
+      const customerData = doc.data();
+      const customerName = customerData['Customer-name']; // Get the customer name from the document data
+      const customerId = customerData['customer-id']; // Get the customer ID from the document data
+      customers.push({ customerName, customerId });
+    });
+
+    res.status(200).json(customers);
+  } catch (error) {
+    console.error('Error fetching customer list:', error);
+    res.status(500).json({ error: 'Error fetching customer list' });
+  }
+});
 
 
+exports.api = functions.https.onRequest(app);
 
-exports.api = functions.https.onRequest(app)
