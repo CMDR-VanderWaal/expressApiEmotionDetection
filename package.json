@@ -11,12 +11,12 @@
   "engines": {
     "node": "18"
   },
-  "main": "fullapp.js",
+  "main": "./src/index.js",
   "dependencies": {
+    "body-parser": "^1.20.2",
     "express": "^4.17.1",
-    "firebase-admin": "^11.8.0",
-    "firebase-function": "^1.4.65",
-    "firebase-functions": "^4.3.1"
+    "firebase-admin": "^12.1.0",
+    "firebase-functions": "^5.0.0"
   },
   "devDependencies": {
     "firebase-functions-test": "^3.1.0"
