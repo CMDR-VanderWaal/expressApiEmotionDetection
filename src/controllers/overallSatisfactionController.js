@@ -1,23 +1,27 @@
 const admin = require('../middlewares/firebaseMiddleware');
 
+const emotionWeights = {
+  "Happy": 1.0,
+  "Sad": 0.5,
+  "Neutral": 0.7,
+  "Angry": 0.2,
+  "Surprised": 0.9,
+  "Fearful": 0.3,
+  "Disgusted": 0.1,
+};
+
 const getOverallSatisfactionData = async (req, res) => {
   try {
     const customerCollection = await admin.firestore().collection('customer-satisfaction-data').get();
 
-    let positiveCustomers = 0;
-    let neutralCustomers = 0;
-    let negativeCustomers = 0;
-    
+    const overallEmotionCounts = {};
+    const overallWeightedEmotionCounts = {};
+    const datewiseEmotionData = {};
+    let totalEmotions = 0;
+    let totalWeightedEmotions = 0;
+
     const customerPromises = customerCollection.docs.map(async (customerDoc) => {
-      const customerData = customerDoc.data();
       const customerId = customerDoc.id;
-
-      const customerObject = {
-        customerId,
-        ...customerData,
-        datewise: [],
-      };
-
       const datewiseCollection = await admin
         .firestore()
         .collection('customer-satisfaction-data')
@@ -25,58 +29,81 @@ const getOverallSatisfactionData = async (req, res) => {
         .collection('datewise')
         .get();
 
-      let isPositive = 0;
-      let isNeutral = 0;
-      let isNegative = 0;
-
       datewiseCollection.forEach((datewiseDoc) => {
         const datewiseData = datewiseDoc.data();
+        const date = datewiseDoc.id;
+
         if ('emotion-data' in datewiseData) {
           const emotions = datewiseData['emotion-data'];
 
-          const positiveEmotions = emotions.filter((emotion) => emotion === "Happy");
-          const neutralEmotions = emotions.filter((emotion) => emotion === "Neutral" || emotion === "Surprised");
-          const negativeEmotions = emotions.filter((emotion) => emotion === "Angry");
-
-          if (positiveEmotions.length > neutralEmotions.length + negativeEmotions.length &&
-              positiveEmotions.length > negativeEmotions.length) {
-            isPositive++;
-          } else if (neutralEmotions.length >= positiveEmotions.length && 
-                     neutralEmotions.length >= negativeEmotions.length) {
-            isNeutral++;
-          } else {
-            isNegative++;
+          if (!datewiseEmotionData[date]) {
+            datewiseEmotionData[date] = {};
           }
+
+          emotions.forEach((emotion) => {
+            overallEmotionCounts[emotion] = (overallEmotionCounts[emotion] || 0) + 1;
+            const weight = emotionWeights[emotion] || 1.0;
+            overallWeightedEmotionCounts[emotion] = (overallWeightedEmotionCounts[emotion] || 0) + weight;
+            totalEmotions += 1;
+            totalWeightedEmotions += weight;
+
+            datewiseEmotionData[date][emotion] = (datewiseEmotionData[date][emotion] || 0) + weight;
+          });
         }
-
-        customerObject.datewise.push({
-          datewiseId: datewiseDoc.id,
-          ...datewiseData,
-        });
       });
-
-      if (isPositive > isNeutral && isPositive > isNegative) {
-        positiveCustomers++;
-      } else if (isNeutral >= isPositive && isNeutral >= isNegative) {
-        neutralCustomers++;
-      } else {
-        negativeCustomers++;
-      }
-
-      return { customerObject };
     });
 
     await Promise.all(customerPromises);
 
+    const overallEmotionPercents = {};
+    const overallWeightedEmotionPercents = {};
+    Object.keys(overallEmotionCounts).forEach((emotion) => {
+      overallEmotionPercents[emotion] = (overallEmotionCounts[emotion] * 100) / totalEmotions;
+      overallWeightedEmotionPercents[emotion] = (overallWeightedEmotionCounts[emotion] * 100) / totalWeightedEmotions;
+    });
+
+    const datewiseData = Object.keys(datewiseEmotionData).map((date) => {
+      const weightedEmotionPercents = {};
+      const totalDatewiseWeightedEmotions = Object.values(datewiseEmotionData[date]).reduce((a, b) => a + b, 0);
+      
+      Object.keys(datewiseEmotionData[date]).forEach((emotion) => {
+        weightedEmotionPercents[emotion] = (datewiseEmotionData[date][emotion] * 100) / totalDatewiseWeightedEmotions;
+      });
+
+      return {
+        date,
+        weightedEmotionPercents,
+      };
+    });
+
+    // Calculate Overall Sentiment Score
+    const overallSentimentScore = calculateOverallSentiment(overallWeightedEmotionPercents);
+
     res.status(200).json({
-      positiveCustomers,
-      neutralCustomers,
-      negativeCustomers,
+      data: datewiseData,
+      emotionCounts: overallEmotionCounts,
+      emotionPercents: overallEmotionPercents,
+      weightedEmotionPercents: overallWeightedEmotionPercents,
+      overallSentimentScore,
     });
   } catch (error) {
     console.error('Error fetching customer satisfaction data:', error);
     res.status(500).json({ error: 'Error fetching customer satisfaction data' });
   }
+};
+
+// Function to calculate Overall Sentiment Score
+const calculateOverallSentiment = (weightedEmotionPercents) => {
+  const positiveScore = (weightedEmotionPercents["Happy"] || 0) +
+                        (weightedEmotionPercents["Surprised"] || 0) +
+                        (weightedEmotionPercents["Neutral"] || 0) * 0.5; // Adjusted weight for Neutral
+  const negativeScore = (weightedEmotionPercents["Angry"] || 0) +
+                        (weightedEmotionPercents["Sad"] || 0) * 0.5 +  // Adjusted weight for Sad
+                        (weightedEmotionPercents["Fearful"] || 0) * 0.3 +  // Adjusted weight for Fearful
+                        (weightedEmotionPercents["Disgusted"] || 0) * 0.1;  // Adjusted weight for Disgusted
+  
+  const overallScore = positiveScore - negativeScore;
+  return overallScore.toFixed(2);
 };
 
 module.exports = {

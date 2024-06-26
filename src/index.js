@@ -14,7 +14,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 app.use('/api/customers', customerRoutes);
 app.use('/api/date-range', dateRoutes);
-app.use('/api/overall-satisfaction', overallSatisfactionRoutes);
+app.use('/api/overall', overallSatisfactionRoutes);
 
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);

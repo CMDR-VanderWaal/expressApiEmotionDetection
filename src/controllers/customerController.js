@@ -66,9 +66,9 @@ const emotionWeights = {
   "Happy": 1.0,
   "Sad": 0.5,
   "Neutral": 0.7,
-  "Angry": 0.3,
+  "Angry": 0.2,
   "Surprised": 0.9,
-  "Fearful": 0.2,
+  "Fearful": 0.3,
 };
 
 const getCustomerDataByName = async (req, res) => {
@@ -87,7 +87,34 @@ const getCustomerDataByName = async (req, res) => {
 
     const data = [];
     querySnapshot.forEach((doc) => {
-      data.push(doc.data());
+      const datewiseData = doc.data();
+      const datewiseId = doc.id;
+      
+      const emotionCounts = {};
+      const weightedEmotionCounts = {};
+      let total = 0;
+      let weightedTotal = 0;
+
+      if ('emotion-data' in datewiseData) {
+        datewiseData['emotion-data'].forEach((emotion) => {
+          emotionCounts[emotion] = (emotionCounts[emotion] || 0) + 1;
+          total += 1;
+          const weight = emotionWeights[emotion] || 1.0;
+          weightedEmotionCounts[emotion] = (weightedEmotionCounts[emotion] || 0) + weight;
+          weightedTotal += weight;
+        });
+      }
+
+      const weightedEmotionPercents = {};
+      const keys = Object.keys(emotionCounts);
+      keys.forEach((emotion) => {
+        weightedEmotionPercents[emotion] = (weightedEmotionCounts[emotion] * 100) / weightedTotal;
+      });
+
+      data.push({
+        date: datewiseId,  // Assuming datewiseId is in "YYYY-MM-DD" format
+        weightedEmotionPercents: weightedEmotionPercents,
+      });
     });
 
     const emotionCounts = {};
