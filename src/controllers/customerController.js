@@ -1,14 +1,34 @@
 const admin = require('../middlewares/firebaseMiddleware');
 
+const emotionWeights = {
+  "Happy": 1.0,
+  "Sad": 0.5,
+  "Neutral": 0.7,
+  "Angry": 0.2,
+  "Surprised": 0.9,
+  "Fearful": 0.3,
+  "Disgusted": 0.1,
+};
+
 const getAllCustomersData = async (req, res) => {
+  const { storeId } = req.params;
+
   try {
-    const customerCollection = await admin.firestore().collection('customer-satisfaction-data').get();
-    
+    const storeDoc = await admin.firestore().collection('customer-satisfaction-data').doc(storeId).get();
+    if (!storeDoc.exists) {
+      return res.status(404).json({ error: 'Store not found' });
+    }
+
+    const customerCollection = await admin.firestore().collection('customer-satisfaction-data').doc(storeId).collection('emotion_db').get();
+
     const jsonData = [];
-    const emotionCounts = {}; 
-    let emotions = []; 
-    const emotionPercents = {};
+    const emotionCounts = {};
+    const weightedEmotionCounts = {};
+    let emotions = [];
     let total = 0;
+    let weightedTotal = 0;
+    const emotionPercents = {};
+    const weightedEmotionPercents = {};
 
     for (const customerDoc of customerCollection.docs) {
       const customerData = customerDoc.data();
@@ -23,6 +43,8 @@ const getAllCustomersData = async (req, res) => {
       const datewiseCollection = await admin
         .firestore()
         .collection('customer-satisfaction-data')
+        .doc(storeId)
+        .collection('emotion_db')
         .doc(customerId)
         .collection('datewise')
         .get();
@@ -35,51 +57,53 @@ const getAllCustomersData = async (req, res) => {
           datewiseId,
           ...datewiseData,
         });
-        
+
         if ('emotion-data' in datewiseData) {
           emotions.push(...datewiseData['emotion-data']);
         }
       });
-      
+
       emotions.forEach((emotion) => {
         emotionCounts[emotion] = (emotionCounts[emotion] || 0) + 1;
         total += 1;
+        const weight = emotionWeights[emotion] || 1.0;
+        weightedEmotionCounts[emotion] = (weightedEmotionCounts[emotion] || 0) + weight;
+        weightedTotal += weight;
       });
+
       emotions = [];
-      
       jsonData.push(customerObject);
     }
 
     const keys = Object.keys(emotionCounts);
-    keys.forEach((emotion)=>{
-      emotionPercents[emotion] = ((emotionCounts[emotion] * 100) / total);
+    keys.forEach((emotion) => {
+      emotionPercents[emotion] = (emotionCounts[emotion] * 100) / total;
+      weightedEmotionPercents[emotion] = (weightedEmotionCounts[emotion] * 100) / weightedTotal;
     });
 
-    res.status(200).json({ jsonData, emotionCounts, emotionPercents });
+    res.status(200).json({ jsonData, emotionCounts, emotionPercents, weightedEmotionPercents });
   } catch (error) {
     console.error('Error fetching all customer data:', error);
     res.status(500).json({ error: 'Error fetching all customer data' });
   }
 };
 
-const emotionWeights = {
-  "Happy": 1.0,
-  "Sad": 0.5,
-  "Neutral": 0.7,
-  "Angry": 0.2,
-  "Surprised": 0.9,
-  "Fearful": 0.3,
-};
 
 const getCustomerDataByName = async (req, res) => {
+  const { storeId, customerName } = req.params;
+  
   try {
-    const customerName = req.params.customerName;
+ 
     const querySnapshot = await admin
       .firestore()
       .collection('customer-satisfaction-data')
+      .doc(storeId)
+      .collection('emotion_db')
       .doc(`${customerName}_emotionData`)
       .collection('datewise')
       .get();
+
+    console.log('Query Snapshot:', querySnapshot);
 
     if (querySnapshot.empty) {
       return res.status(404).json({ error: 'Customer not found' });
@@ -128,6 +152,7 @@ const getCustomerDataByName = async (req, res) => {
 
       if ('emotion-data' in datewiseData) {
         emotions.push(...datewiseData['emotion-data']);
+      
       }
     });
 
@@ -150,19 +175,21 @@ const getCustomerDataByName = async (req, res) => {
     res.status(200).json({ data, emotionCounts, emotionPercents, weightedEmotionPercents });
   } catch (error) {
     console.error('Error fetching customer data:', error);
-    res.status(500).json({ error: 'Error loading customer data' });
+    res.status(500).json({ error: `Error loading customer data: ${error.message}` });
   }
 };
 
 
 const getAllCustomers = async (req, res) => {
+  const { storeId } = req.params;
+
   try {
-    const customerCollection = await admin.firestore().collection('customer-satisfaction-data').get();
+    const customerCollection = await admin.firestore().collection('customer-satisfaction-data').doc(storeId).collection('emotion_db').get();
     const customers = [];
 
     customerCollection.forEach((doc) => {
       const customerData = doc.data();
-      const customerName = customerData['Customer-name'];
+      const customerName = customerData['customer-name'];
       const customerId = customerData['customer-id'];
       customers.push({ customerName, customerId });
     });
@@ -180,11 +207,11 @@ const getAllCustomers = async (req, res) => {
  * @param {Object} res - Express response object.
  */
 const deleteCustomerData = async (req, res) => {
-  const customerId = req.params.customerName;
-  //searched required document to be deleted by customer id 
+  const { storeId, customerName } = req.params;
+
   try {
     // Get a reference to the customer's document
-    const customerDocRef = admin.firestore().collection('customer-satisfaction-data').doc(`${customerId}_emotionData`);
+    const customerDocRef = admin.firestore().collection('customer-satisfaction-data').doc(storeId).collection('emotion_db').doc(`${customerName}_emotionData`);
 
     // Check if the document exists
     const docSnapshot = await customerDocRef.get();

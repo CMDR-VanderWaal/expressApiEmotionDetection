@@ -2,6 +2,6 @@ const express = require('express');
 const router = express.Router();
 const overallSatisfactionController = require('../controllers/overallSatisfactionController');
 
-router.get('/', overallSatisfactionController.getOverallSatisfactionData);
+router.get('/:storeId', overallSatisfactionController.getOverallSatisfactionData);
 
 module.exports = router;

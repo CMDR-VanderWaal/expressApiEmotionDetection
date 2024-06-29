@@ -11,8 +11,15 @@ const emotionWeights = {
 };
 
 const getOverallSatisfactionData = async (req, res) => {
+  const { storeId } = req.params;
+
   try {
-    const customerCollection = await admin.firestore().collection('customer-satisfaction-data').get();
+    const storeDoc = await admin.firestore().collection('customer-satisfaction-data').doc(storeId).get();
+    if (!storeDoc.exists) {
+      return res.status(404).json({ error: 'Store not found' });
+    }
+
+    const emotionDbCollection = await admin.firestore().collection('customer-satisfaction-data').doc(storeId).collection('emotion_db').get();
 
     const overallEmotionCounts = {};
     const overallWeightedEmotionCounts = {};
@@ -20,11 +27,13 @@ const getOverallSatisfactionData = async (req, res) => {
     let totalEmotions = 0;
     let totalWeightedEmotions = 0;
 
-    const customerPromises = customerCollection.docs.map(async (customerDoc) => {
+    const customerPromises = emotionDbCollection.docs.map(async (customerDoc) => {
       const customerId = customerDoc.id;
       const datewiseCollection = await admin
         .firestore()
         .collection('customer-satisfaction-data')
+        .doc(storeId)
+        .collection('emotion_db')
         .doc(customerId)
         .collection('datewise')
         .get();
@@ -96,11 +105,11 @@ const getOverallSatisfactionData = async (req, res) => {
 const calculateOverallSentiment = (weightedEmotionPercents) => {
   const positiveScore = (weightedEmotionPercents["Happy"] || 0) +
                         (weightedEmotionPercents["Surprised"] || 0) +
-                        (weightedEmotionPercents["Neutral"] || 0) * 0.5; // Adjusted weight for Neutral
+                        (weightedEmotionPercents["Neutral"] || 0) * 0.5; 
   const negativeScore = (weightedEmotionPercents["Angry"] || 0) +
-                        (weightedEmotionPercents["Sad"] || 0) * 0.5 +  // Adjusted weight for Sad
-                        (weightedEmotionPercents["Fearful"] || 0) * 0.3 +  // Adjusted weight for Fearful
-                        (weightedEmotionPercents["Disgusted"] || 0) * 0.1;  // Adjusted weight for Disgusted
+                        (weightedEmotionPercents["Sad"] || 0) * 0.5 +  
+                        (weightedEmotionPercents["Fearful"] || 0) * 0.3 +  
+                        (weightedEmotionPercents["Disgusted"] || 0) * 0.1;  
   
   const overallScore = positiveScore - negativeScore;
   return overallScore.toFixed(2);

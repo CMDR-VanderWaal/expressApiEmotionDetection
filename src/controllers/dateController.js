@@ -11,37 +11,46 @@ const emotionWeights = {
 };
 
 const getDateRangeData = async (req, res) => {
+  const { storeId, startDate, endDate } = req.params;
+
   try {
-    const startDate = req.params.startDate;
-    const endDate = req.params.endDate;
-    const datewiseCollection = admin.firestore().collectionGroup('datewise');
+    const storeDocRef = admin.firestore()
+      .collection('customer-satisfaction-data')
+      .doc(storeId)
+      .collection('emotion_db');
+
     const data = [];
     const datewiseEmotionCounts = {};
     const emotions = [];
     const totalEmotionCounts = {};
 
-    const querySnapshot = await datewiseCollection.get();
-    querySnapshot.forEach((doc) => {
-      const datewiseData = doc.data();
-      const docDate = doc.id;
+    const querySnapshot = await storeDocRef.get();
 
-      if (docDate >= startDate && docDate <= endDate && 'emotion-data' in datewiseData) {
-        data.push(datewiseData);
+    for (const customerDoc of querySnapshot.docs) {
+      const datewiseCollection = customerDoc.ref.collection('datewise');
+      const datewiseSnapshot = await datewiseCollection.get();
 
-        if (!datewiseEmotionCounts[docDate]) {
-          datewiseEmotionCounts[docDate] = {};
+      datewiseSnapshot.forEach((doc) => {
+        const datewiseData = doc.data();
+        const docDate = doc.id;
+
+        if (docDate >= startDate && docDate <= endDate && 'emotion-data' in datewiseData) {
+          data.push(datewiseData);
+
+          if (!datewiseEmotionCounts[docDate]) {
+            datewiseEmotionCounts[docDate] = {};
+          }
+
+          datewiseData['emotion-data'].forEach((emotion) => {
+            emotions.push(emotion);
+            datewiseEmotionCounts[docDate][emotion] = (datewiseEmotionCounts[docDate][emotion] || 0) + 1;
+            totalEmotionCounts[emotion] = (totalEmotionCounts[emotion] || 0) + 1;
+          });
         }
-
-        datewiseData['emotion-data'].forEach((emotion) => {
-          emotions.push(emotion);
-          datewiseEmotionCounts[docDate][emotion] = (datewiseEmotionCounts[docDate][emotion] || 0) + 1;
-          totalEmotionCounts[emotion] = (totalEmotionCounts[emotion] || 0) + 1;
-        });
-      }
-    });
+      });
+    }
 
     const uniqueDates = Object.keys(datewiseEmotionCounts);
-
     const emotionPercents = {};
     const weightedEmotionPercents = {};
 
